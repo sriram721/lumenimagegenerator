@@ -208,22 +208,12 @@
 <script>
 /* ===========================================================
    Lumen AI — Image Generator
-   Uses Hugging Face Inference API (Stable Diffusion).
-   IMPORTANT: Replace HF_TOKEN with your own free token from
-   https://huggingface.co/settings/tokens (Read access is enough).
+   Calls our own /api/generate endpoint, which talks to the
+   Lovable AI Gateway (Gemini image model) on the server.
+   No API key needed on the client.
    =========================================================== */
 
-const HF_TOKEN  = "hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"; // <- put your token here
-const HF_MODEL  = "stabilityai/stable-diffusion-xl-base-1.0";
-const HF_URL    = `https://api-inference.huggingface.co/models/${HF_MODEL}`;
-
-/* Style presets — appended to the user prompt to steer the model */
-const STYLE_PRESETS = {
-  realistic: "photorealistic, ultra detailed, 8k, sharp focus, natural lighting",
-  anime:     "anime style, studio ghibli inspired, vibrant colors, cel shading",
-  cinematic: "cinematic lighting, dramatic atmosphere, film still, depth of field, 35mm",
-  digital:   "digital art, concept art, trending on artstation, intricate details, vibrant"
-};
+const API_URL = "/api/generate";
 
 /* DOM refs */
 const promptEl   = document.getElementById("prompt");
@@ -270,44 +260,23 @@ async function generate(){
   const prompt = promptEl.value.trim();
   if(!prompt){ showError("Please enter a prompt first."); return; }
 
-  if(HF_TOKEN.includes("xxxxxxxx")){
-    showError("Add your free Hugging Face token in the HF_TOKEN constant inside the <script> tag.");
-    return;
-  }
-
-  const fullPrompt = `${prompt}, ${STYLE_PRESETS[styleEl.value]}`;
-
   genBtn.disabled = true;
   dlBtn.disabled  = true;
   renderLoading();
 
   try{
-    const res = await fetch(HF_URL, {
+    const res = await fetch(API_URL, {
       method: "POST",
-      headers: {
-        "Authorization": `Bearer ${HF_TOKEN}`,
-        "Content-Type":  "application/json",
-        "Accept":        "image/png"
-      },
-      body: JSON.stringify({
-        inputs: fullPrompt,
-        options: { wait_for_model: true }
-      })
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, style: styleEl.value })
     });
 
-    if(!res.ok){
-      // Try to surface API error JSON if present
-      let msg = `Request failed (${res.status})`;
-      try{
-        const j = await res.json();
-        if(j.error) msg = j.error;
-      }catch(_){}
-      throw new Error(msg);
+    const data = await res.json().catch(() => ({}));
+    if(!res.ok || !data.image){
+      throw new Error(data.error || `Request failed (${res.status})`);
     }
 
-    const blob = await res.blob();
-    if(currentImageUrl) URL.revokeObjectURL(currentImageUrl);
-    currentImageUrl = URL.createObjectURL(blob);
+    currentImageUrl = data.image; // data:image/png;base64,...
     renderImage(currentImageUrl);
     dlBtn.disabled = false;
   }catch(err){
