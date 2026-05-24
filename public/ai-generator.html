@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Lumen — AI Image Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ---------- Reset & base ---------- */
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg-1:#0b0b1f;
+    --bg-2:#1a0b2e;
+    --bg-3:#0d1b3d;
+    --accent-1:#7c3aed;
+    --accent-2:#ec4899;
+    --accent-3:#06b6d4;
+    --text:#f5f5fa;
+    --muted:#a3a3c2;
+    --glass:rgba(255,255,255,0.06);
+    --glass-strong:rgba(255,255,255,0.10);
+    --border:rgba(255,255,255,0.12);
+    --radius:18px;
+    --shadow:0 20px 60px -20px rgba(124,58,237,0.45);
+  }
+  html,body{height:100%}
+  body{
+    font-family:'Inter',system-ui,sans-serif;
+    color:var(--text);
+    background:radial-gradient(1200px 800px at 10% -10%, #2a1066 0%, transparent 60%),
+               radial-gradient(900px 700px at 110% 10%, #831843 0%, transparent 55%),
+               radial-gradient(1000px 800px at 50% 120%, #0e3a8a 0%, transparent 60%),
+               linear-gradient(135deg,var(--bg-1),var(--bg-2) 50%,var(--bg-3));
+    min-height:100vh;
+    overflow-x:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* floating blurry orbs */
+  body::before,body::after{
+    content:"";position:fixed;border-radius:50%;filter:blur(80px);opacity:.55;z-index:0;pointer-events:none;
+    animation:float 14s ease-in-out infinite;
+  }
+  body::before{width:380px;height:380px;background:var(--accent-1);top:-80px;left:-80px}
+  body::after{width:420px;height:420px;background:var(--accent-2);bottom:-120px;right:-100px;animation-delay:-7s}
+  @keyframes float{
+    0%,100%{transform:translate(0,0) scale(1)}
+    50%{transform:translate(40px,-30px) scale(1.08)}
+  }
+
+  /* ---------- Layout ---------- */
+  .app{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:48px 24px 80px}
+  header{text-align:center;margin-bottom:40px;animation:fadeUp .8s ease both}
+  .logo{display:inline-flex;align-items:center;gap:10px;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;letter-spacing:.5px;padding:8px 16px;border-radius:999px;background:var(--glass);border:1px solid var(--border);backdrop-filter:blur(20px)}
+  .logo .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--accent-1),var(--accent-2));box-shadow:0 0 14px var(--accent-2)}
+  h1{font-family:'Space Grotesk',sans-serif;font-size:clamp(2.2rem,5vw,3.6rem);font-weight:700;margin:22px 0 12px;line-height:1.1;
+    background:linear-gradient(135deg,#fff 0%,#c7b7ff 40%,#ff9ed1 80%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  header p{color:var(--muted);max-width:560px;margin:0 auto;font-size:1.05rem}
+
+  /* ---------- Card ---------- */
+  .card{
+    background:var(--glass);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:28px;
+    backdrop-filter:blur(24px);
+    -webkit-backdrop-filter:blur(24px);
+    box-shadow:var(--shadow);
+    animation:fadeUp .9s .1s ease both;
+  }
+  .grid{display:grid;grid-template-columns:1fr;gap:28px}
+  @media(min-width:900px){.grid{grid-template-columns:1fr 1fr}}
+
+  label{display:block;font-weight:600;margin-bottom:10px;font-size:.95rem;color:#e6e6f5}
+  textarea,select{
+    width:100%;
+    background:rgba(255,255,255,0.04);
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:12px;
+    padding:14px 16px;
+    font-family:inherit;
+    font-size:.98rem;
+    transition:.25s;
+    outline:none;
+  }
+  textarea{min-height:140px;resize:vertical;line-height:1.5}
+  textarea:focus,select:focus{border-color:var(--accent-2);background:rgba(255,255,255,0.07);box-shadow:0 0 0 4px rgba(236,72,153,0.15)}
+  select{appearance:none;cursor:pointer;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23a3a3c2' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");background-repeat:no-repeat;background-position:right 16px center;padding-right:44px}
+  .row{margin-bottom:20px}
+
+  /* ---------- Button ---------- */
+  .btn{
+    position:relative;display:inline-flex;align-items:center;justify-content:center;gap:10px;
+    width:100%;padding:15px 22px;border:none;border-radius:12px;cursor:pointer;
+    font-family:inherit;font-weight:600;font-size:1rem;color:#fff;letter-spacing:.3px;
+    background:linear-gradient(135deg,var(--accent-1),var(--accent-2));
+    box-shadow:0 10px 30px -10px rgba(236,72,153,.6);
+    transition:transform .2s, box-shadow .2s, filter .2s;overflow:hidden;
+  }
+  .btn:hover:not(:disabled){transform:translateY(-2px);filter:brightness(1.08);box-shadow:0 16px 40px -12px rgba(236,72,153,.75)}
+  .btn:active:not(:disabled){transform:translateY(0)}
+  .btn:disabled{opacity:.65;cursor:not-allowed}
+  .btn.secondary{background:var(--glass-strong);border:1px solid var(--border);box-shadow:none}
+  .btn.secondary:hover:not(:disabled){background:rgba(255,255,255,0.14)}
+
+  /* ---------- Preview ---------- */
+  .preview{
+    display:flex;align-items:center;justify-content:center;
+    min-height:360px;border-radius:14px;
+    border:1px dashed var(--border);
+    background:rgba(255,255,255,0.025);
+    position:relative;overflow:hidden;text-align:center;padding:20px;
+  }
+  .preview img{max-width:100%;max-height:520px;border-radius:12px;display:block;animation:popIn .5s ease both;box-shadow:0 20px 50px -10px rgba(0,0,0,.5)}
+  .placeholder{color:var(--muted);font-size:.95rem}
+  .placeholder svg{display:block;margin:0 auto 14px;opacity:.6}
+
+  /* spinner */
+  .spinner{width:56px;height:56px;border-radius:50%;
+    border:4px solid rgba(255,255,255,0.12);
+    border-top-color:var(--accent-2);
+    border-right-color:var(--accent-1);
+    animation:spin 1s linear infinite;margin:0 auto 14px}
+  .loading-text{color:var(--muted);font-size:.95rem}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .actions{margin-top:18px;display:flex;gap:12px}
+  .actions .btn{flex:1}
+
+  .error{
+    margin-top:14px;padding:12px 14px;border-radius:10px;
+    background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.35);
+    color:#fecaca;font-size:.9rem;display:none;
+  }
+
+  footer{text-align:center;margin-top:40px;color:var(--muted);font-size:.85rem}
+  footer a{color:#c7b7ff;text-decoration:none}
+
+  @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes popIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+
+  @media(max-width:600px){
+    .app{padding:32px 16px 60px}
+    .card{padding:20px}
+    .actions{flex-direction:column}
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="logo"><span class="dot"></span> Lumen AI</div>
+      <h1>Turn words into stunning images</h1>
+      <p>Describe anything you can imagine and let Stable Diffusion bring it to life — in seconds.</p>
+    </header>
+
+    <section class="card">
+      <div class="grid">
+        <!-- LEFT: controls -->
+        <div>
+          <div class="row">
+            <label for="prompt">Your prompt</label>
+            <textarea id="prompt" placeholder="A futuristic city skyline at sunset, cinematic lighting, ultra detailed..."></textarea>
+          </div>
+          <div class="row">
+            <label for="style">Style</label>
+            <select id="style">
+              <option value="realistic">Realistic</option>
+              <option value="anime">Anime</option>
+              <option value="cinematic">Cinematic</option>
+              <option value="digital">Digital Art</option>
+            </select>
+          </div>
+          <button id="generateBtn" class="btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v4M3 5h4M6 17v4M4 19h4M13 3l3.5 7L24 12l-7.5 2L13 21l-3.5-7L2 12l7.5-2z"/></svg>
+            Generate Image
+          </button>
+          <div id="error" class="error"></div>
+        </div>
+
+        <!-- RIGHT: preview -->
+        <div>
+          <label>Preview</label>
+          <div id="preview" class="preview">
+            <div class="placeholder">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+              Your generated image will appear here
+            </div>
+          </div>
+          <div class="actions">
+            <button id="downloadBtn" class="btn secondary" disabled>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Download
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <p>Powered by Hugging Face · Stable Diffusion · Built with ❤</p>
+    </footer>
+  </div>
+
+<script>
+/* ===========================================================
+   Lumen AI — Image Generator
+   Uses Hugging Face Inference API (Stable Diffusion).
+   IMPORTANT: Replace HF_TOKEN with your own free token from
+   https://huggingface.co/settings/tokens (Read access is enough).
+   =========================================================== */
+
+const HF_TOKEN  = "hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"; // <- put your token here
+const HF_MODEL  = "stabilityai/stable-diffusion-xl-base-1.0";
+const HF_URL    = `https://api-inference.huggingface.co/models/${HF_MODEL}`;
+
+/* Style presets — appended to the user prompt to steer the model */
+const STYLE_PRESETS = {
+  realistic: "photorealistic, ultra detailed, 8k, sharp focus, natural lighting",
+  anime:     "anime style, studio ghibli inspired, vibrant colors, cel shading",
+  cinematic: "cinematic lighting, dramatic atmosphere, film still, depth of field, 35mm",
+  digital:   "digital art, concept art, trending on artstation, intricate details, vibrant"
+};
+
+/* DOM refs */
+const promptEl   = document.getElementById("prompt");
+const styleEl    = document.getElementById("style");
+const genBtn     = document.getElementById("generateBtn");
+const dlBtn      = document.getElementById("downloadBtn");
+const previewEl  = document.getElementById("preview");
+const errorEl    = document.getElementById("error");
+
+let currentImageUrl = null;
+
+/* ---- UI helpers ---- */
+function showError(msg){
+  errorEl.textContent = msg;
+  errorEl.style.display = "block";
+}
+function clearError(){ errorEl.style.display = "none"; errorEl.textContent = ""; }
+
+function renderPlaceholder(){
+  previewEl.innerHTML = `
+    <div class="placeholder">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+      Your generated image will appear here
+    </div>`;
+}
+function renderLoading(){
+  previewEl.innerHTML = `
+    <div>
+      <div class="spinner"></div>
+      <div class="loading-text">Conjuring your image… this can take 10–30s</div>
+    </div>`;
+}
+function renderImage(url){
+  previewEl.innerHTML = "";
+  const img = document.createElement("img");
+  img.src = url;
+  img.alt = "AI generated image";
+  previewEl.appendChild(img);
+}
+
+/* ---- Main: generate ---- */
+async function generate(){
+  clearError();
+  const prompt = promptEl.value.trim();
+  if(!prompt){ showError("Please enter a prompt first."); return; }
+
+  if(HF_TOKEN.includes("xxxxxxxx")){
+    showError("Add your free Hugging Face token in the HF_TOKEN constant inside the <script> tag.");
+    return;
+  }
+
+  const fullPrompt = `${prompt}, ${STYLE_PRESETS[styleEl.value]}`;
+
+  genBtn.disabled = true;
+  dlBtn.disabled  = true;
+  renderLoading();
+
+  try{
+    const res = await fetch(HF_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${HF_TOKEN}`,
+        "Content-Type":  "application/json",
+        "Accept":        "image/png"
+      },
+      body: JSON.stringify({
+        inputs: fullPrompt,
+        options: { wait_for_model: true }
+      })
+    });
+
+    if(!res.ok){
+      // Try to surface API error JSON if present
+      let msg = `Request failed (${res.status})`;
+      try{
+        const j = await res.json();
+        if(j.error) msg = j.error;
+      }catch(_){}
+      throw new Error(msg);
+    }
+
+    const blob = await res.blob();
+    if(currentImageUrl) URL.revokeObjectURL(currentImageUrl);
+    currentImageUrl = URL.createObjectURL(blob);
+    renderImage(currentImageUrl);
+    dlBtn.disabled = false;
+  }catch(err){
+    console.error(err);
+    renderPlaceholder();
+    showError(err.message || "Something went wrong. Please try again.");
+  }finally{
+    genBtn.disabled = false;
+  }
+}
+
+/* ---- Download ---- */
+function download(){
+  if(!currentImageUrl) return;
+  const a = document.createElement("a");
+  a.href = currentImageUrl;
+  a.download = `lumen-${Date.now()}.png`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+/* ---- Events ---- */
+genBtn.addEventListener("click", generate);
+dlBtn .addEventListener("click", download);
+promptEl.addEventListener("keydown", e => {
+  if((e.metaKey || e.ctrlKey) && e.key === "Enter") generate();
+});
+</script>
+</body>
+</html>
